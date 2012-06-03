@@ -1,0 +1,1 @@
+* node ID's could be shortend to 1byte, as could checksums
