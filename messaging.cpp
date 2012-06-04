@@ -12,7 +12,7 @@
  * TODO: Lookup a good & past CRC algorithm
  */
 checksum_t
-messaging_checksum(uint8_t *data, length_t length) 
+messaging_calculate_checksum(uint8_t *data, length_t length) 
 {
   checksum_t checksum = 0;
   length_t i;
@@ -23,8 +23,24 @@ messaging_checksum(uint8_t *data, length_t length)
   return checksum;
 }
 
+/* Get the checksum for a message */
+checksum_t
+messaging_checksum(msg_header_t *hdr) 
+{
+  /* Swap out the checksum for zero during computation */
+  checksum_t check_in = hdr->checksum;
+  checksum_t check;
+
+  hdr->checksum = 0;
+  check = messaging_calculate_checksum((uint8_t *)hdr, hdr->length);
+  hdr->checksum = check_in;
+
+  return check;
+}
+
+
 /* Verify that the version-involatile header is valid */
-char
+status_t
 messaging_valid_prefix(msg_header_t *hdr)
 {
   if (hdr->marker != MSG_START_MARKER)
@@ -38,7 +54,7 @@ messaging_valid_prefix(msg_header_t *hdr)
 }
 
 /* Validate a received message */
-char
+status_t
 messaging_validate(uint8_t *data, length_t length) 
 {
   msg_header_t *hdr = (msg_header_t *)data;
@@ -55,7 +71,7 @@ messaging_validate(uint8_t *data, length_t length)
     return 0;
   }
 
-  if (messaging_checksum(data, length) != hdr->checksum) {
+  if (messaging_checksum(hdr) != hdr->checksum) {
     return 0;
   }
 
@@ -76,7 +92,7 @@ messaging_next_byte(void)
   return 0;
 }
 
-uint8_t
+status_t
 messaging_send_byte(uint8_t data_byte) 
 {
   // TODO: How do we send data?
@@ -192,4 +208,39 @@ MSG_GET:
   return read;
 }
 
+/*
+ * Build and construct an acknowledgement message
+ */
+status_t
+messaging_ack_packet(msg_header_t *hdr_in,
+                     node_id_t source,
+                     uint8_t *data,
+                     uint8_t data_len) 
+{
+  uint8_t buffer[MSG_MAX_LENGTH];
+  msg_header_t *hdr_out = (msg_header_t *)buffer;
+
+  hdr_out->marker = MSG_START_MARKER;
+  hdr_out->version = hdr_in->version;
+  hdr_out->length = sizeof (msg_header_t) + data_len + sizeof (uint8_t);
+  hdr_out->source = source;
+  hdr_out->destination = hdr_in->source;
+  hdr_out->sequence = hdr_in->sequence;
+  hdr_out->type = hdr_in->type;
+  hdr_out->flags = MSG_FLAG_ACK;
+
+  if (data_len) {
+    memcpy(buffer + sizeof (msg_header_t), data, data_len);
+  }
+
+  buffer[hdr_out->length - 1] = MSG_END_MARKER;
+
+  /* Compute the checksum on the message */
+  hdr_out->checksum = messaging_checksum(hdr_out);
+
+  /* Transmit */
+  messaging_send_packet(hdr_out);
+
+  return 1;
+}
 

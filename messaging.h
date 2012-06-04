@@ -57,12 +57,6 @@ typedef struct msg_header {
 
 #define MSG_PREFIX_LEN 4
 
-/* Compute a checksum for a data buffer */
-checksum_t messaging_checksum(uint8_t *data, length_t length);
-
-/* Validate a received message */
-char messaging_validate(uint8_t *data, length_t length);
-
 /* Read and return a valid packet */
 length_t messaging_get_packet(uint8_t *buffer, length_t buffer_length);
 
@@ -71,7 +65,10 @@ length_t messaging_return_packet(uint8_t *buffer, length_t buffer_length,
                                  uint16_t local_id);
 
 /* Send an acknowledgement */
-status_t messaging_ack_packet(msg_header_t *hdr);
+status_t messaging_ack_packet(msg_header_t *hdr,
+                              node_id_t source,
+                              uint8_t *data,
+                              uint8_t data_len);
 
 /*
  * #define's for optional functionality
